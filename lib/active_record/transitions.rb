@@ -27,7 +27,7 @@ module ActiveRecord
     included do
       include ::Transitions
       before_validation :set_initial_state
-      validates_presence_of :state
+      #validates_presence_of :state
       validate :state_inclusion
     end
 
@@ -45,26 +45,35 @@ module ActiveRecord
       ivar = state_machine.current_state_variable
       prev_state = current_state(state_machine.name)
       instance_variable_set(ivar, state)
-      self.state = state.to_s
+      self.send(state_machine.name.to_s + '=', state.to_s)
+      
+      pp self
       save!
     rescue ActiveRecord::RecordInvalid
-      self.state = prev_state.to_s
+      self.send(state_machine.name.to_s + '=', prev_state.to_s)
       instance_variable_set(ivar, prev_state)
       raise
     end
 
     def read_state(state_machine)
-      self.state.to_sym
+      self.send(state_machine.name).to_sym
     end
 
     def set_initial_state
-      self.state ||= self.class.state_machine.initial_state.to_s
+      self.class.state_machines.each{|k,state_machine| self.send(state_machine.name.to_s + '=', state_machine.initial_state.to_s) unless self.send(state_machine.name) }
+      # self.state ||= self.class.state_machine.initial_state.to_s
     end
 
     def state_inclusion
-      unless self.class.state_machine.states.map{|s| s.name.to_s }.include?(self.state.to_s)
-        self.errors.add(:state, :inclusion, :value => self.state)
+      self.class.state_machines.each do |name, state_machine|
+        unless state_machine.states.map{|s| s.name.to_s}.include? self.send(state_machine.name).to_s
+          self.errors.add(:state, :inclusion, :value => self.send(state_machine.name))
+        end
       end
+      
+      # unless self.class.state_machine.states.map{|s| s.name.to_s }.include?(self.state.to_s)
+      #   self.errors.add(:state, :inclusion, :value => self.state)
+      # end
     end
   end
 end
